@@ -2,7 +2,7 @@ TrinketLightShoes
 =================
 RGB LED shoes using force sensors, based on the Adafruit Trinket board.
 
-**Parts**
+##Parts##
 Easy options, depending on the shoes you have in mind...
 
 *Trinket*
@@ -19,5 +19,5 @@ http://www.karlssonrobotics.com/cart/LED-RGB-Strip-Addressable-Sealed-1M
 https://www.adafruit.com/products/67
 http://www.karlssonrobotics.com/cart/Battery-Holder-4xAA-with-Cover-and-Switch
 
-**More documentation**
+##More documentation##
 http://doublejosh.com/post/81855412865
