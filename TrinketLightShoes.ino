@@ -1,5 +1,3 @@
-#include <math.h>
-
 /**
  * Sense and blink.
  */
