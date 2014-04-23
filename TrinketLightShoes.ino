@@ -13,10 +13,11 @@
 // Input-output.
 int test_led = 1; // Trinket built in LED.
 // The Trinket is a bit confusing on analog input assigment.
+// https://learn.adafruit.com/introducing-trinket/pinouts
 int PIN_IN_ONE = 2; // Input for force: front.
 int PIN_IN_TWO = 3; // Input for force: back.
 int ANALOG_READ_ONE = 1; // Analog input for force: front.
-int ANALOG_READ_TWO = 2; // Analog input for force: back.
+int ANALOG_READ_TWO = 3; // Analog input for force: back.
 int PIN_DATA = 0; // Digital data out to lights.
 int PIN_CLOCK = 1; // Digital clock out to lights.
 
