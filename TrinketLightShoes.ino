@@ -3,8 +3,6 @@
  * Sense force in shoes and blink LEDs.
  */
 
-#include "SPI.h"
-#include "WS2801.h"
 
 /**
  * Constants.
@@ -23,24 +21,29 @@ int PIN_CLOCK = 1; // Digital clock out to lights.
 
 // Programs.
 int MASTER_WAIT = 100; // ms.
-int NUM_LIGHTS = 42;
-int MIDDLE_LIGHT = 21;
-WS2801 light_strip = WS2801(NUM_LIGHTS, PIN_DATA, PIN_CLOCK);
+#define NUM_LIGHTS 9
+int MIDDLE_LIGHT = 4;
+//Adafruit_WS2801 light_strip = Adafruit_WS2801(NUM_LIGHTS, PIN_DATA, PIN_CLOCK);
 int STOMP_FORCE_CHANGE = 500; // Force change required.
 int STOMP_TIME_LIMIT = 2000; // MS to allow stomp within.
 int stomp_cycles = STOMP_TIME_LIMIT / MASTER_WAIT;
 int STEP_FORCE_CHANGE = 500;
 boolean rotating = false;
+int recent_pressure_1 = 0;
+int recent_pressure_2 = 0;
 
 // Global vars :(
 int recent_pressure = 0; // Hold previous force.
 int recent_stomp = 0; // Has another stomp recently happened.
 
+long colors[NUM_LIGHTS];
+
 // Allow dynamic functions
-typedef void (*function) ();
+//typedef void (*function) ();
 // Dynamic function list.
-int NUM_PROGRAMS = 4;
-function arrOfFunctions[NUM_PROGRAMS] = {&back_front, &grandient, &rotate, &off};
+//function arrOfFunctions[NUM_PROGRAMS] = {&back_front, &grandient, &rotate, &off};
+//int NUM_PROGRAMS = 4;
+
 
 // Basic setup.
 void setup() {                
@@ -48,18 +51,23 @@ void setup() {
   pinMode(test_led, OUTPUT);
   pinMode(PIN_IN_ONE, INPUT);
   pinMode(PIN_IN_TWO, INPUT);
-  light_strip.begin();
-  light_strip.show();
+  //light_strip.begin();
+  //light_strip.show();
 }
+
 
 // Master looper.
 void loop() {
-
+  colors[0] = 0xFF0000;
+  colors[1] = 0x0000FF;
+  colors[2] = 0x00FF00;
+  
   // Get values and find colors.
   float ff_reading_1 = analogRead(ANALOG_READ_ONE);
   float ff_reading_2 = analogRead(ANALOG_READ_TWO);
 
   // Detect stomp.
+  /*
   if (analogRead(ANALOG_READ_ONE) > (STOMP_FORCE_CHANGE + recent_pressure_1) {
     // Double stomp detected.
     if (recent_stomp) {
@@ -81,25 +89,50 @@ void loop() {
     // No stomp currently, remove from time bank.
     recent_stomp--;
   }
-
+  */
+  
   // Play the program.
-  arrOfFunctions[program_index](ff_reading_1, ff_reading_2, recent_pressure_1, recent_pressure_2);
+  //arrOfFunctions[program_index](ff_reading_1, ff_reading_2, recent_pressure_1, recent_pressure_2);
 
   // Retain pressure readings.
   recent_pressure_1 = ff_reading_1;
   recent_pressure_2 = ff_reading_2;
 
-  /*
-  // Initial debug.
-  digitalWrite(test_led, HIGH);
-  delay(blink_delay);
 
+  digitalWrite(test_led, HIGH);
+  delay(MASTER_WAIT);
+  //post_frame();
   digitalWrite(test_led, LOW);
-  delay(blink_delay);  
-  */
 
   // Throttle.
-  delay(MASTER_WAIT);
+  //delay(MASTER_WAIT);
+}
+
+
+void post_frame (void) {
+
+  int i;
+  for (i=0; i < NUM_LIGHTS; i++) {
+    long this_led_color = colors[i]; //24 bits of color data
+
+    for(byte color_bit = 23 ; color_bit != 255 ; color_bit--) {      
+      digitalWrite(PIN_CLOCK, LOW); //Only change data when clock is low
+      
+      long mask = 1L << color_bit;
+      //The 1'L' forces the 1 to start as a 32 bit number, otherwise it defaults to 16-bit.
+      
+      if(this_led_color & mask) 
+        digitalWrite(PIN_DATA, HIGH);
+      else
+        digitalWrite(PIN_DATA, LOW);
+  
+      digitalWrite(PIN_CLOCK, HIGH); //Data is latched when clock goes high
+    }
+  }
+
+  //Pull clock low to put strip into reset/post mode
+  digitalWrite(PIN_CLOCK, LOW);
+  delayMicroseconds(500); //Wait for 500us to go into reset
 }
 
 
@@ -107,22 +140,23 @@ void loop() {
  * Light programs..
  */
 
-void back_front(f1, f2, rp1, rp2) {
+/*
+int back_front(f1, f2, rp1, rp2) {
   // Find colors.
   int color_scale_1 = fscale(0, 1023, 256, 0, r1, 8);
   int color_scale_2 = fscale(0, 1023, 256, 0, r2, 8);
 
   // Simply set a back and front half with force level pixel colors.
   for (int i=0; i<= MIDDLE_LIGHT; i++) {
-    strip.setPixelColor(i, color_wheel(color_scale_1));
+    light_strip.setPixelColor(i, color_wheel(color_scale_1));
   }
   for (int i=NUM_LIGHTS; i> MIDDLE_LIGHT; i--) {
-    strip.setPixelColor(i, color_wheel(color_scale_2));
+    light_strip.setPixelColor(i, color_wheel(color_scale_2));
   }
   light_strip.show();
 }
 
-void grandient(f1, f2, rp1, rp2) {
+int grandient(f1, f2, rp1, rp2) {
   // Find colors.
   int color_scale_1 = fscale(0, 1023, 256, 0, ff_reading_1, 8);
   int color_scale_2 = fscale(0, 1023, 256, 0, ff_reading_2, 8);
@@ -132,13 +166,13 @@ void grandient(f1, f2, rp1, rp2) {
   int wheel_step = color_diff / (NUM_LIGHTS / 2);
   for (int i=0; i<=MIDDLE_LIGHT; i++) {
     int this_color = (wheel_step * i) + color_scale_1;
-    strip.setPixelColor(i, color_wheel(this_color));
-    strip.setPixelColor(i + MIDDLE_LIGHT, color_wheel(this_color));
+    light_strip.setPixelColor(i, color_wheel(this_color));
+    light_strip.setPixelColor(i + MIDDLE_LIGHT, color_wheel(this_color));
   }
   light_strip.show();
 }
 
-void rotate(f1, f2, rp1, rp2) {
+int rotate(f1, f2, rp1, rp2) {
   // Detect step.
   if (f2 > (STEP_FORCE_CHANGE + rp2) {
     int color_scale_2 = fscale(0, 1023, 256, 0, ff_reading_2, 8);
@@ -146,24 +180,24 @@ void rotate(f1, f2, rp1, rp2) {
     for (int i=0; i < NUM_LIGHTS; i++) {
       if ( i % 2 == 0 ) {
         int color_scale_2 = fscale(0, 1023, 256, 0, ff_reading_2, 8);
-        strip.setPixelColor(i, this_color);
+        light_strip.setPixelColor(i, this_color);
       }
       else {
-        strip.setPixelColor(i, Color(0, 0, 0));
+        light_strip.setPixelColor(i, Color(0, 0, 0));
       }
       light_strip.show();
     }
   }
 }
 
-void off(f1, f2, rp1, rp2) {
+int off(f1, f2, rp1, rp2) {
   // Do nothing.
   for (int i=0; i < NUM_LIGHTS; i++) {
-    strip.setPixelColor(i, Color(0, 0, 0));
+    light_strip.setPixelColor(i, Color(0, 0, 0));
   }
   light_strip.show();
 }
-
+*/
 
 /**
  * Helper functions...
