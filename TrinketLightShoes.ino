@@ -33,10 +33,14 @@ int recent_pressure_1 = 0;
 int recent_pressure_2 = 0;
 
 // Global vars :(
+unsigned int rgb_pixel_strip[NUM_LIGHTS];
 int recent_pressure = 0; // Hold previous force.
 int recent_stomp = 0; // Has another stomp recently happened.
 
 long colors[NUM_LIGHTS];
+colors[0] = 0xFF0000;
+colors[1] = 0x0000FF;
+colors[2] = 0x00FF00;
 
 // Allow dynamic functions
 //typedef void (*function) ();
@@ -58,10 +62,7 @@ void setup() {
 
 // Master looper.
 void loop() {
-  colors[0] = 0xFF0000;
-  colors[1] = 0x0000FF;
-  colors[2] = 0x00FF00;
-  
+
   // Get values and find colors.
   float ff_reading_1 = analogRead(ANALOG_READ_ONE);
   float ff_reading_2 = analogRead(ANALOG_READ_TWO);
@@ -98,10 +99,9 @@ void loop() {
   recent_pressure_1 = ff_reading_1;
   recent_pressure_2 = ff_reading_2;
 
-
   digitalWrite(test_led, HIGH);
   delay(MASTER_WAIT);
-  //post_frame();
+  post_frame();
   digitalWrite(test_led, LOW);
 
   // Throttle.
@@ -111,16 +111,19 @@ void loop() {
 
 void post_frame (void) {
 
-  int i;
-  for (i=0; i < NUM_LIGHTS; i++) {
-    long this_led_color = colors[i]; //24 bits of color data
+  for (int i = 0; i < NUM_LIGHTS; i++) {
+    //24 bits of color data.
+    long this_led_color = colors[i];
 
-    for(byte color_bit = 23 ; color_bit != 255 ; color_bit--) {      
-      digitalWrite(PIN_CLOCK, LOW); //Only change data when clock is low
-      
+    // Feed color bit 23 first.
+    for (byte color_bit = 23; color_bit != 255; color_bit--) {
+
+      // Only change data when clock is low.
+      digitalWrite(PIN_CLOCK, LOW);
+
+      // Forces the 1 to start as a 32 bit number, otherwise it defaults to 16-bit.
       long mask = 1L << color_bit;
-      //The 1'L' forces the 1 to start as a 32 bit number, otherwise it defaults to 16-bit.
-      
+
       if(this_led_color & mask) 
         digitalWrite(PIN_DATA, HIGH);
       else
@@ -130,9 +133,9 @@ void post_frame (void) {
     }
   }
 
-  //Pull clock low to put strip into reset/post mode
+  // Pull clock low to put strip into reset/post mode.
   digitalWrite(PIN_CLOCK, LOW);
-  delayMicroseconds(500); //Wait for 500us to go into reset
+  delayMicroseconds(500); // Wait for 500us to go into reset.
 }
 
 
