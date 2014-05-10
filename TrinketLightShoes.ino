@@ -3,69 +3,86 @@
  * Sense force in shoes and blink LEDs.
  */
 
+// Stripped down, non-SPI version of the WS2801 library. 
+#include "Simple_WS2801.h"
 
 /**
- * Constants.
+ * Constants and Globals...
  */
 
-// Input-output.
-int test_led = 1; // Trinket built in LED.
 // The Trinket is a bit confusing on analog input assigment.
 // https://learn.adafruit.com/introducing-trinket/pinouts
-int PIN_IN_ONE = 2; // Input for force: front.
-int PIN_IN_TWO = 3; // Input for force: back.
-int ANALOG_READ_ONE = 1; // Analog input for force: front.
-int ANALOG_READ_TWO = 3; // Analog input for force: back.
-int PIN_DATA = 0; // Digital data out to lights.
-int PIN_CLOCK = 1; // Digital clock out to lights.
 
-// Programs.
-int MASTER_WAIT = 100; // ms.
-#define NUM_LIGHTS 9
-int MIDDLE_LIGHT = 4;
-//Adafruit_WS2801 light_strip = Adafruit_WS2801(NUM_LIGHTS, PIN_DATA, PIN_CLOCK);
-int STOMP_FORCE_CHANGE = 500; // Force change required.
-int STOMP_TIME_LIMIT = 2000; // MS to allow stomp within.
-int stomp_cycles = STOMP_TIME_LIMIT / MASTER_WAIT;
-int STEP_FORCE_CHANGE = 500;
-boolean rotating = false;
-int recent_pressure_1 = 0;
-int recent_pressure_2 = 0;
+// Input/output.
+//const int test_led = 1;      // Trinket built in LED is 1, standard Arduinos use 13.
+const int PIN_IN_ONE = 2;      // Input for force: front.
+const int PIN_IN_TWO = 3;      // Input for force: back.
+const int ANALOG_READ_ONE = 1; // Analog input for force: front.
+const int ANALOG_READ_TWO = 3; // Analog input for force: back.
+const int PIN_DATA = 0;        // Digital data out to lights.
+const int PIN_CLOCK = 1;       // Digital clock out to lights.
+const int FORCE_STEPS = 5;
 
-// Global vars :(
-unsigned int rgb_pixel_strip[NUM_LIGHTS];
-int recent_pressure = 0; // Hold previous force.
-int recent_stomp = 0; // Has another stomp recently happened.
+// Manage hardware.
+const int NUM_LIGHTS = 7;
+const int MIDDLE_LIGHT = 4;
+const int FORCE_MAX = 650;
 
-long colors[NUM_LIGHTS];
-colors[0] = 0xFF0000;
-colors[1] = 0x0000FF;
-colors[2] = 0x00FF00;
+// Global program utilities.
+const int WHEEL_MAX = 255;
+const int COLOR_CURVE = 0;            // Log relationship between force and color.
+const int MASTER_WAIT = 20;           // Delay in ms.
+
+// Main selector program.
+const int NUM_PROGRAMS = 4;
+const int STOMP_FORCE_CHANGE = 500;   // Force change required for mode stomp.
+const int STOMP_TIME_LIMIT = 2000;    // MS to allow stomp within.
+const int stomp_cycles = STOMP_TIME_LIMIT / MASTER_WAIT;  // Cycles to wait for double stomp.
+const int STEP_FORCE_CHANGE = 200;    // Force change required for step.
+
+/**
+ * Global vars.
+ */
+
+// Manage hardware.
+Simple_WS2801 strip = Simple_WS2801(NUM_LIGHTS, PIN_DATA, PIN_CLOCK);
+uint32_t meta_strip[NUM_LIGHTS];
 
 // Allow dynamic functions
 //typedef void (*function) ();
 // Dynamic function list.
 //function arrOfFunctions[NUM_PROGRAMS] = {&back_front, &grandient, &rotate, &off};
-//int NUM_PROGRAMS = 4;
 
+// Programs.
+int recent_pressure_1 = 0;      // Last pressure reading: front.
+int recent_pressure_2 = 0;      // Last pressure reading: back.
+int recent_stomp = 0;           // Has another stomp recently happened.
+boolean rotating = false;       // Is the rotation program in process.
+
+
+/**
+ * Required functions...
+ */
 
 // Basic setup.
-void setup() {                
-  // Initialize the digital pin as an output.
-  pinMode(test_led, OUTPUT);
+void setup() {
+  // Initialize hardware.
   pinMode(PIN_IN_ONE, INPUT);
   pinMode(PIN_IN_TWO, INPUT);
-  //light_strip.begin();
-  //light_strip.show();
+  pinMode(PIN_DATA, OUTPUT);
+  pinMode(PIN_CLOCK, OUTPUT);
+  strip.begin();
 }
-
 
 // Master looper.
 void loop() {
+  // Collect data and reduce granularity.
+  int ff_reading_1 = analogRead(ANALOG_READ_ONE);
+  ff_reading_1 = ff_reading_1 - (ff_reading_1 % FORCE_STEPS);
+  int ff_reading_2 = analogRead(ANALOG_READ_TWO);
+  ff_reading_2 = ff_reading_2 - (ff_reading_2 % FORCE_STEPS);
 
-  // Get values and find colors.
-  float ff_reading_1 = analogRead(ANALOG_READ_ONE);
-  float ff_reading_2 = analogRead(ANALOG_READ_TWO);
+  force_rotate(ff_reading_1, ff_reading_2, recent_pressure_1, recent_pressure_2);
 
   // Detect stomp.
   /*
@@ -91,7 +108,7 @@ void loop() {
     recent_stomp--;
   }
   */
-  
+
   // Play the program.
   //arrOfFunctions[program_index](ff_reading_1, ff_reading_2, recent_pressure_1, recent_pressure_2);
 
@@ -99,52 +116,55 @@ void loop() {
   recent_pressure_1 = ff_reading_1;
   recent_pressure_2 = ff_reading_2;
 
-  digitalWrite(test_led, HIGH);
-  delay(MASTER_WAIT);
-  post_frame();
-  digitalWrite(test_led, LOW);
-
   // Throttle.
   //delay(MASTER_WAIT);
 }
 
 
-void post_frame (void) {
-
-  for (int i = 0; i < NUM_LIGHTS; i++) {
-    //24 bits of color data.
-    long this_led_color = colors[i];
-
-    // Feed color bit 23 first.
-    for (byte color_bit = 23; color_bit != 255; color_bit--) {
-
-      // Only change data when clock is low.
-      digitalWrite(PIN_CLOCK, LOW);
-
-      // Forces the 1 to start as a 32 bit number, otherwise it defaults to 16-bit.
-      long mask = 1L << color_bit;
-
-      if(this_led_color & mask) 
-        digitalWrite(PIN_DATA, HIGH);
-      else
-        digitalWrite(PIN_DATA, LOW);
-  
-      digitalWrite(PIN_CLOCK, HIGH); //Data is latched when clock goes high
-    }
-  }
-
-  // Pull clock low to put strip into reset/post mode.
-  digitalWrite(PIN_CLOCK, LOW);
-  delayMicroseconds(500); // Wait for 500us to go into reset.
-}
-
-
 /**
- * Light programs..
+ * Light programs...
  */
 
+// React to steps using force to rate color around once.
+int force_rotate(int f1, int f2, int rp1, int rp2) {
+  // Seed rotation with new force color.
+  int color = fscale(0, FORCE_MAX, 0, WHEEL_MAX, f1, COLOR_CURVE);
+  strip.setPixelColor(0, Wheel(color));
+  meta_strip[0] = Wheel(color);
+  // Rotate color around.
+  for (int i=1; i < strip.numPixels(); i++) {
+    meta_strip[i] = meta_strip[i - 1];
+    strip.setPixelColor(i, meta_strip[i - 1]);
+    strip.show();
+    delay(25);
+  }
+}
+
+// React to steps using force to rate color around once.
+int step_force_rotate(int f1, int f2, int rp1, int rp2) {
+  // Detect step.
+  if (f1 > (STEP_FORCE_CHANGE + rp1)) {
+      // Seed rotation with new force color.
+      int color = fscale(STEP_FORCE_CHANGE, FORCE_MAX, 0, WHEEL_MAX, f1, COLOR_CURVE);
+      strip.setPixelColor(0, Wheel(color));
+      meta_strip[0] = Wheel(color);
+  }
+  else {
+    // Seed with empty.
+    strip.setPixelColor(0, Color(0, 0, 0));
+    meta_strip[0] = Color(0, 0, 0);
+  }
+  // Rotate color around.
+  for (int i=1; i < strip.numPixels(); i++) {
+    meta_strip[i] = meta_strip[i - 1];
+    strip.setPixelColor(i, meta_strip[i - 1]);
+    strip.show();
+    delay(25);
+  }
+}
+
 /*
-int back_front(f1, f2, rp1, rp2) {
+int back_front(int f1, int f2, int rp1, int rp2) {
   // Find colors.
   int color_scale_1 = fscale(0, 1023, 256, 0, r1, 8);
   int color_scale_2 = fscale(0, 1023, 256, 0, r2, 8);
@@ -159,7 +179,7 @@ int back_front(f1, f2, rp1, rp2) {
   light_strip.show();
 }
 
-int grandient(f1, f2, rp1, rp2) {
+int grandient(int f1, int f2, int rp1, int rp2) {
   // Find colors.
   int color_scale_1 = fscale(0, 1023, 256, 0, ff_reading_1, 8);
   int color_scale_2 = fscale(0, 1023, 256, 0, ff_reading_2, 8);
@@ -175,25 +195,7 @@ int grandient(f1, f2, rp1, rp2) {
   light_strip.show();
 }
 
-int rotate(f1, f2, rp1, rp2) {
-  // Detect step.
-  if (f2 > (STEP_FORCE_CHANGE + rp2) {
-    int color_scale_2 = fscale(0, 1023, 256, 0, ff_reading_2, 8);
-    int this_color = color_wheel(color_scale_2);
-    for (int i=0; i < NUM_LIGHTS; i++) {
-      if ( i % 2 == 0 ) {
-        int color_scale_2 = fscale(0, 1023, 256, 0, ff_reading_2, 8);
-        light_strip.setPixelColor(i, this_color);
-      }
-      else {
-        light_strip.setPixelColor(i, Color(0, 0, 0));
-      }
-      light_strip.show();
-    }
-  }
-}
-
-int off(f1, f2, rp1, rp2) {
+int off(int f1, int f2, int rp1, int rp2) {
   // Do nothing.
   for (int i=0; i < NUM_LIGHTS; i++) {
     light_strip.setPixelColor(i, Color(0, 0, 0));
@@ -209,8 +211,7 @@ int off(f1, f2, rp1, rp2) {
 /**
  * Create a 24 bit color value from R,G,B.
  */
-uint32_t Color(byte r, byte g, byte b)
-{
+uint32_t Color(byte r, byte g, byte b) {
   uint32_t c;
   c = r;
   c <<= 8;
@@ -221,11 +222,10 @@ uint32_t Color(byte r, byte g, byte b)
 }
 
 /**
-* Input a value 0 to 255 to get a color value.
-* The colours are a transition r - g -b - back to r.
-**/
-uint32_t color_wheel(byte WheelPos)
-{
+ * Input a value 0 to 255 to get a color value.
+ * The colours are a transition r - g -b - back to r
+ */
+uint32_t Wheel(byte WheelPos) {
   if (WheelPos < 85) {
    return Color(WheelPos * 3, 255 - WheelPos * 3, 0);
   } else if (WheelPos < 170) {
@@ -238,10 +238,9 @@ uint32_t color_wheel(byte WheelPos)
 }
 
 /**
- * Map() with log curve.
+ * Map with curve.
  */
-float fscale( float originalMin, float originalMax, float newBegin, float
-newEnd, float inputValue, float curve){
+int fscale(int originalMin, int originalMax, int newBegin, int newEnd, int inputValue, float curve){
 
   float OriginalRange = 0;
   float NewRange = 0;
@@ -249,7 +248,6 @@ newEnd, float inputValue, float curve){
   float normalizedCurVal = 0;
   float rangedValue = 0;
   boolean invFlag = 0;
-
 
   // condition curve parameter
   // limit range
@@ -288,28 +286,19 @@ newEnd, float inputValue, float curve){
   zeroRefCurVal = inputValue - originalMin;
   normalizedCurVal  =  zeroRefCurVal / OriginalRange;   // normalize to 0 - 1 float
 
-  /*
-  Serial.print(OriginalRange, DEC);  
-   Serial.print("   ");  
-   Serial.print(NewRange, DEC);  
-   Serial.print("   ");  
-   Serial.println(zeroRefCurVal, DEC);  
-   Serial.println();  
-   */
-
   // Check for originalMin > originalMax  - the math for all other cases i.e. negative numbers seems to work out fine
-  if (originalMin > originalMax ) {
+  if (originalMin > originalMax) {
     return 0;
   }
 
-  if (invFlag == 0){
+  if (invFlag == 0) {
     rangedValue =  (pow(normalizedCurVal, curve) * NewRange) + newBegin;
 
   }
-  else     // invert the ranges
-  {  
-    rangedValue =  newBegin - (pow(normalizedCurVal, curve) * NewRange);
+  else {  
+    rangedValue = newBegin - (pow(normalizedCurVal, curve) * NewRange);
   }
 
   return rangedValue;
 }
+
