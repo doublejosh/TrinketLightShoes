@@ -1,8 +1,11 @@
 TrinketLightShoes
 =================
-RGB LED shoes using force sensors, based on the Adafruit Trinket board.
+Use force sensor(s) to control addressable RGB LEDs on shoes using the Adafruit Trinket microcontroller.
 
-##Parts##
+###Dependency
+https://github.com/doublejosh/Simple_WS2801
+
+##Hardware##
 Easy options, depending on the shoes you have in mind...
 
 **Trinket**
@@ -20,4 +23,11 @@ Easy options, depending on the shoes you have in mind...
  * http://www.karlssonrobotics.com/cart/Battery-Holder-4xAA-with-Cover-and-Switch
 
 ##More documentation##
+Plenty of additional details are available within this blog post...
 http://doublejosh.com/post/81855412865
+
+-------------------------------------
+
+Written by Josh Lind.  
+Attribution must be included in any redistribution.
+Commercial redistribution is not allowed without express consent.

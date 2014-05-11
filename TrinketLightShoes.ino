@@ -128,7 +128,7 @@ void loop() {
 // React to steps using force to rate color around once.
 int force_rotate(int f1, int f2, int rp1, int rp2) {
   // Seed rotation with new force color.
-  int color = fscale(0, FORCE_MAX, 0, WHEEL_MAX, f1, COLOR_CURVE);
+  int color = fscale(5, FORCE_MAX, 0, WHEEL_MAX, f1, COLOR_CURVE);
   strip.setPixelColor(0, Wheel(color));
   meta_strip[0] = Wheel(color);
   // Rotate color around.
