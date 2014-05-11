@@ -30,14 +30,13 @@ const int FORCE_MAX = 650;
 
 // Global program utilities.
 const int COLOR_CURVE = 0;            // Log relationship between force and color.
-const int MASTER_WAIT = 20;          // Delay in ms.
+int master_wait = 20;                 // Delay in ms.
 
 // Main selector program.
 const boolean SINGLE_MODE = false;
-const int NUM_PROGRAMS = 8;
-const int STOMP_FORCE_CHANGE = 400;   // Force change required for mode stomp.
+const int NUM_PROGRAMS = 5;
+const int STOMP_FORCE_CHANGE = 280;   // Force change required for mode stomp.
 const int STOMP_TIME_LIMIT = 2000;    // MS to allow stomp within.
-const int stomp_cycles = STOMP_TIME_LIMIT / MASTER_WAIT;  // Cycles to wait for double stomp.
 const int STEP_FORCE_CHANGE = 180;    // Force change required for step.
 // Allow dynamic functions
 typedef int (*function) (int, int);
@@ -46,11 +45,8 @@ function arrOfFunctions[NUM_PROGRAMS] = {
   &force_rotate,
   &test_func,
   &force_only,
-  &test_func,
-  &off,
-  &test_func,
   &rainbow,
-  &test_func
+  &off
 };
 
 /**
@@ -85,6 +81,9 @@ void setup() {
 
 // Master looper.
 void loop() {
+  // Cycles to wait for double stomp.
+  int stomp_cycles = STOMP_TIME_LIMIT / master_wait;
+
   // Collect data and reduce granularity.
   int ff_reading_1 = analogRead(ANALOG_READ_ONE);
   ff_reading_1 = ff_reading_1 - (ff_reading_1 % FORCE_STEPS);
@@ -134,7 +133,7 @@ void loop() {
   //recent_pressure_2 = ff_reading_2;
 
   // Throttle.
-  delay(MASTER_WAIT);
+  delay(master_wait);
 }
 
 
@@ -144,6 +143,8 @@ void loop() {
 
 // React to steps using force to rate color around once.
 int force_rotate(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
+  master_wait = 20;
+
   // Seed rotation with new force color.
   int color = map(f1, 5, FORCE_MAX, 0, 255);
   strip.setPixelColor(0, Wheel(color));
@@ -159,6 +160,8 @@ int force_rotate(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
 
 // React to steps using force to rate color around once.
 int step_force_rotate(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
+  master_wait = 20;
+
   // Detect step.
   if (f1 > (STEP_FORCE_CHANGE + rp1)) {
     // Seed rotation with new force color.
@@ -186,6 +189,8 @@ int step_force_rotate(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
 }
 
 int force_only(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
+  master_wait = 5;
+  
   int color = map(f1, 5, FORCE_MAX, 0, 255);
   // Rotate color around.
   for (int i=0; i < strip.numPixels(); i++) {
@@ -195,8 +200,12 @@ int force_only(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
 }
 
 int rainbow(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
+  master_wait = 1;
+
   for (int i = 0; i < strip.numPixels(); i++) {
-    strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + rainbow_position) % 256));
+    int color = ((i * 256 / strip.numPixels()) + rainbow_position) % 256;
+    //strip.setPixelColor(i, Wheel(color - (color % 12)));
+    strip.setPixelColor(i, Wheel(color));
   }
 
   if (rainbow_position < 256) {
@@ -248,6 +257,8 @@ int grandient(int f1, int f2, int rp1, int rp2) {
  */
 
 int off(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
+  master_wait = 20;
+
   // Do nothing.
   for (int i=0; i < NUM_LIGHTS; i++) {
     strip.setPixelColor(i, Color(0, 0, 0));
