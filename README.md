@@ -22,12 +22,13 @@ Easy options, depending on the shoes you have in mind...
  * https://www.adafruit.com/products/67
  * http://www.karlssonrobotics.com/cart/Battery-Holder-4xAA-with-Cover-and-Switch
 
-##More documentation##
+##Documentation##
 Plenty of additional details are available within this blog post...
+
 http://doublejosh.com/post/81855412865
 
 -------------------------------------
 
 Written by Josh Lind.  
-Attribution must be included in any redistribution.
-Commercial redistribution is not allowed without express consent.
+* Attribution must be included in any redistribution.
+* Commercial redistribution is not allowed without express consent.
