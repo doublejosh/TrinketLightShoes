@@ -34,11 +34,15 @@ const int COLOR_CURVE = 0;            // Log relationship between force and colo
 const int MASTER_WAIT = 20;           // Delay in ms.
 
 // Main selector program.
-const int NUM_PROGRAMS = 4;
+const int NUM_PROGRAMS = 5;
 const int STOMP_FORCE_CHANGE = 500;   // Force change required for mode stomp.
 const int STOMP_TIME_LIMIT = 2000;    // MS to allow stomp within.
 const int stomp_cycles = STOMP_TIME_LIMIT / MASTER_WAIT;  // Cycles to wait for double stomp.
 const int STEP_FORCE_CHANGE = 200;    // Force change required for step.
+// Allow dynamic functions
+//typedef void (*function) ();
+// Dynamic function list.
+//function arrOfFunctions[NUM_PROGRAMS] = {&back_front, &grandient, &force_rotate, &step_force_rotatte, &off};
 
 /**
  * Global vars.
@@ -47,11 +51,6 @@ const int STEP_FORCE_CHANGE = 200;    // Force change required for step.
 // Manage hardware.
 Simple_WS2801 strip = Simple_WS2801(NUM_LIGHTS, PIN_DATA, PIN_CLOCK);
 uint32_t meta_strip[NUM_LIGHTS];
-
-// Allow dynamic functions
-//typedef void (*function) ();
-// Dynamic function list.
-//function arrOfFunctions[NUM_PROGRAMS] = {&back_front, &grandient, &rotate, &off};
 
 // Programs.
 int recent_pressure_1 = 0;      // Last pressure reading: front.
@@ -82,7 +81,7 @@ void loop() {
   int ff_reading_2 = analogRead(ANALOG_READ_TWO);
   ff_reading_2 = ff_reading_2 - (ff_reading_2 % FORCE_STEPS);
 
-  force_rotate(ff_reading_1, ff_reading_2, recent_pressure_1, recent_pressure_2);
+  step_force_rotate(ff_reading_1, ff_reading_2, recent_pressure_1, recent_pressure_2);
 
   // Detect stomp.
   /*
@@ -144,10 +143,10 @@ int force_rotate(int f1, int f2, int rp1, int rp2) {
 int step_force_rotate(int f1, int f2, int rp1, int rp2) {
   // Detect step.
   if (f1 > (STEP_FORCE_CHANGE + rp1)) {
-      // Seed rotation with new force color.
-      int color = fscale(STEP_FORCE_CHANGE, FORCE_MAX, 0, WHEEL_MAX, f1, COLOR_CURVE);
-      strip.setPixelColor(0, Wheel(color));
-      meta_strip[0] = Wheel(color);
+    // Seed rotation with new force color.
+    int color = fscale(STEP_FORCE_CHANGE, FORCE_MAX, 0, WHEEL_MAX, f1, COLOR_CURVE);
+    strip.setPixelColor(0, Wheel(color));
+    meta_strip[0] = Wheel(color);
   }
   else {
     // Seed with empty.
