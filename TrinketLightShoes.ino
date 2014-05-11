@@ -35,7 +35,7 @@ const int MASTER_WAIT = 20;          // Delay in ms.
 // Main selector program.
 const boolean SINGLE_MODE = false;
 const int NUM_PROGRAMS = 8;
-const int STOMP_FORCE_CHANGE = 250;   // Force change required for mode stomp.
+const int STOMP_FORCE_CHANGE = 400;   // Force change required for mode stomp.
 const int STOMP_TIME_LIMIT = 2000;    // MS to allow stomp within.
 const int stomp_cycles = STOMP_TIME_LIMIT / MASTER_WAIT;  // Cycles to wait for double stomp.
 const int STEP_FORCE_CHANGE = 180;    // Force change required for step.
