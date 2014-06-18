@@ -4,7 +4,8 @@
  */
 
 // Stripped down, non-SPI version of the WS2801 library. 
-#include "Simple_WS2801.h"
+//#include "Simple_WS2801.h"
+#include "Simple_LPD8806.h"
 
 /**
  * Constants and Globals...
@@ -24,13 +25,13 @@ const int PIN_CLOCK = 1;        // Digital clock out to lights.
 const int FORCE_STEPS = 1;
 
 // Manage hardware.
-const int NUM_LIGHTS = 7;
-const int MIDDLE_LIGHT = 4;
+const int NUM_LIGHTS = 16;
+const int MIDDLE_LIGHT = 8;
 const int FORCE_MAX = 650;
 
 // Global program utilities.
 const int COLOR_CURVE = 0;            // Log relationship between force and color.
-int master_wait = 20;                 // Delay in ms.
+int master_wait = 5;                 // Delay in ms.
 
 // Main selector program.
 const boolean SINGLE_MODE = false;
@@ -54,7 +55,7 @@ function arrOfFunctions[NUM_PROGRAMS] = {
  */
 
 // Manage hardware.
-Simple_WS2801 strip = Simple_WS2801(NUM_LIGHTS, PIN_DATA, PIN_CLOCK);
+Simple_LPD8806 strip = Simple_LPD8806(NUM_LIGHTS, PIN_DATA, PIN_CLOCK);
 uint32_t meta_strip[NUM_LIGHTS];
 
 // Programs.
@@ -143,8 +144,6 @@ void loop() {
 
 // React to steps using force to rate color around once.
 int force_rotate(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
-  master_wait = 20;
-
   // Seed rotation with new force color.
   int color = map(f1, 5, FORCE_MAX, 0, 255);
   strip.setPixelColor(0, Wheel(color));
@@ -154,14 +153,12 @@ int force_rotate(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
     meta_strip[i] = meta_strip[i - 1];
     strip.setPixelColor(i, meta_strip[i - 1]);
     strip.show();
-    delay(25);
+    delay(master_wait);
   }
 }
 
 // React to steps using force to rate color around once.
 int step_force_rotate(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
-  master_wait = 20;
-
   // Detect step.
   if (f1 > (STEP_FORCE_CHANGE + rp1)) {
     // Seed rotation with new force color.
@@ -184,24 +181,21 @@ int step_force_rotate(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
       meta_strip[0] = meta_strip[i - 1];
     }
     strip.show();
-    delay(20);
+    delay(master_wait);
   }
 }
 
-int force_only(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
-  master_wait = 5;
-  
+int force_only(int f1, /*int f2,*/ int rp1/*, int rp2*/) {  
   int color = map(f1, 5, FORCE_MAX, 0, 255);
   // Rotate color around.
   for (int i=0; i < strip.numPixels(); i++) {
     strip.setPixelColor(i, Wheel(color));
   }
   strip.show();
+  delay(master_wait*10);
 }
 
 int rainbow(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
-  master_wait = 1;
-
   for (int i = 0; i < strip.numPixels(); i++) {
     int color = ((i * 256 / strip.numPixels()) + rainbow_position) % 256;
     //strip.setPixelColor(i, Wheel(color - (color % 12)));
@@ -216,6 +210,7 @@ int rainbow(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
   }
 
   strip.show();
+  //delay(master_wait);
 }
 
 /*
