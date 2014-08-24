@@ -1,53 +1,56 @@
 /**
  * @file
- * Sense force in shoes and blink LEDs.
+ * Sense force and blink LEDs on shoes.
  */
 
 // Stripped down, non-SPI version of the WS2801 library. 
 //#include "Simple_WS2801.h"
-#include "Simple_LPD8806.h"
+//#include "Simple_LPD8806.h"
+#include "Adafruit_NeoPixel.h"
 
 /**
  * Constants and Globals...
  */
 
-// The Trinket is a bit confusing on analog input assigment.
+// The Trinket is a bit confusing on analog input assigments.
 // https://learn.adafruit.com/introducing-trinket/pinouts
 
 // Input/output.
-//const int test_led = 1;       // Trinket built in LED is 1, standard Arduinos use 13.
-const int PIN_IN_ONE = 2;       // Input for force: front.
-const int PIN_IN_TWO = 3;       // Input for force: back.
-const int ANALOG_READ_ONE = 1;  // Analog input for force: front.
-const int ANALOG_READ_TWO = 3;  // Analog input for force: back.
-const int PIN_DATA = 0;         // Digital data out to lights.
-const int PIN_CLOCK = 1;        // Digital clock out to lights.
-const int FORCE_STEPS = 1;
+//const int test_led = 1;        // Trinket built in LED is 1, standard Arduinos use 13.
+const int PIN_IN_ONE = 2;        // Input for force: front.
+const int PIN_IN_TWO = 3;        // Input for force: back.
+const int ANALOG_READ_ONE = 1;   // Analog input for force: front.
+const int ANALOG_READ_TWO = 3;   // Analog input for force: back.
+const int PIN_DATA = 1;          // Data out to lights.
+//const int PIN_CLOCK = 1;       // Clock out to lights. Now using Neopixels.
+const int PIN_POT = 4;           // Data in from potentiometer.
+const int ANALOG_READ_THREE = 2; // Analog input for force: back.
 
 // Manage hardware.
-const int NUM_LIGHTS = 16;
-const int MIDDLE_LIGHT = 8;
+const int NUM_LIGHTS = 40;
+const int MIDDLE_LIGHT = 14;
 const int FORCE_MAX = 650;
+const int FORCE_STEPS = 10;
 
 // Global program utilities.
-const int COLOR_CURVE = 0;            // Log relationship between force and color.
-int master_wait = 5;                 // Delay in ms.
+const int COLOR_CURVE = 0;      // Log relationship between force and color.
+int master_wait = 5;            // Delay in ms.
 
 // Main selector program.
 const boolean SINGLE_MODE = false;
-const int NUM_PROGRAMS = 5;
+const int NUM_PROGRAMS = 3;
 const int STOMP_FORCE_CHANGE = 280;   // Force change required for mode stomp.
 const int STOMP_TIME_LIMIT = 2000;    // MS to allow stomp within.
 const int STEP_FORCE_CHANGE = 180;    // Force change required for step.
 // Allow dynamic functions
-typedef int (*function) (int, int);
+typedef int (*function) (int, int, int, int);
 // Dynamic function list.
 function arrOfFunctions[NUM_PROGRAMS] = {
-  &force_rotate,
-  &test_func,
-  &force_only,
   &rainbow,
-  &off
+  &force_rotate,
+  //&test_func,
+  &force_only,
+  //&off
 };
 
 /**
@@ -55,16 +58,17 @@ function arrOfFunctions[NUM_PROGRAMS] = {
  */
 
 // Manage hardware.
-Simple_LPD8806 strip = Simple_LPD8806(NUM_LIGHTS, PIN_DATA, PIN_CLOCK);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LIGHTS, PIN_DATA, NEO_GRB + NEO_KHZ800);
 uint32_t meta_strip[NUM_LIGHTS];
 
 // Programs.
 int recent_pressure_1 = 0;      // Last pressure reading: front.
-//int recent_pressure_2 = 0;    // Last pressure reading: back.
+int recent_pressure_2 = 0;    // Last pressure reading: back.
 int pattern_index = 0;          // Keep track of pattern program.
 int recent_stomp = 0;           // Has another stomp recently happened.
 int rainbow_position = 0;       // Rotate rainbow.
 int color_step = 255 / strip.numPixels();
+int brightness = 100;
 
 /**
  * Required functions...
@@ -76,7 +80,7 @@ void setup() {
   pinMode(PIN_IN_ONE, INPUT);
   pinMode(PIN_IN_TWO, INPUT);
   pinMode(PIN_DATA, OUTPUT);
-  pinMode(PIN_CLOCK, OUTPUT);
+  pinMode(PIN_POT, INPUT);
   strip.begin();
 }
 
@@ -84,12 +88,16 @@ void setup() {
 void loop() {
   // Cycles to wait for double stomp.
   int stomp_cycles = STOMP_TIME_LIMIT / master_wait;
+  
+  // Listen for brightness change..
+  int pot_sensor = analogRead(ANALOG_READ_THREE);
+  brightness = map(pot_sensor, 0, 1023, 1, 15);
 
   // Collect data and reduce granularity.
   int ff_reading_1 = analogRead(ANALOG_READ_ONE);
   ff_reading_1 = ff_reading_1 - (ff_reading_1 % FORCE_STEPS);
-  //int ff_reading_2 = analogRead(ANALOG_READ_TWO);
-  //ff_reading_2 = ff_reading_2 - (ff_reading_2 % FORCE_STEPS);
+  int ff_reading_2 = analogRead(ANALOG_READ_TWO);
+  ff_reading_2 = ff_reading_2 - (ff_reading_2 % FORCE_STEPS);
 
   if (SINGLE_MODE == false) {
 
@@ -97,12 +105,10 @@ void loop() {
     if (analogRead(ANALOG_READ_ONE) > (STOMP_FORCE_CHANGE + recent_pressure_1)) {
       // Double stomp detected.
       if (recent_stomp > 0) {
+        pattern_index++;
         // Keep within available function list.
         if (pattern_index >= NUM_PROGRAMS) {
           pattern_index = 0;
-        }
-        else {
-          pattern_index++;
         }
         // Reset stop watcher.
         recent_stomp = 0;
@@ -120,18 +126,18 @@ void loop() {
     }
 
     // Play the program.
-    arrOfFunctions[pattern_index](ff_reading_1, /*ff_reading_2,*/ recent_pressure_1/*, recent_pressure_2*/);
+    arrOfFunctions[pattern_index](ff_reading_1, ff_reading_2, recent_pressure_1, recent_pressure_2);
 
   }
   else {
 
-    rainbow(ff_reading_1, /*ff_reading_2,*/ recent_pressure_1/*, recent_pressure_2*/);
+    force_only(ff_reading_1, ff_reading_2, recent_pressure_1, recent_pressure_2);
 
   }
 
   // Retain pressure readings.
   recent_pressure_1 = ff_reading_1;
-  //recent_pressure_2 = ff_reading_2;
+  recent_pressure_2 = ff_reading_2;
 
   // Throttle.
   delay(master_wait);
@@ -143,7 +149,7 @@ void loop() {
  */
 
 // React to steps using force to rate color around once.
-int force_rotate(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
+int force_rotate(int f1, int f2, int rp1, int rp2) {
   // Seed rotation with new force color.
   int color = map(f1, 5, FORCE_MAX, 0, 255);
   strip.setPixelColor(0, Wheel(color));
@@ -157,8 +163,9 @@ int force_rotate(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
   }
 }
 
+/*
 // React to steps using force to rate color around once.
-int step_force_rotate(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
+int step_force_rotate(int f1, int f2, int rp1, int rp2) {
   // Detect step.
   if (f1 > (STEP_FORCE_CHANGE + rp1)) {
     // Seed rotation with new force color.
@@ -184,8 +191,9 @@ int step_force_rotate(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
     delay(master_wait);
   }
 }
+*/
 
-int force_only(int f1, /*int f2,*/ int rp1/*, int rp2*/) {  
+int force_only(int f1, int f2, int rp1, int rp2) {  
   int color = map(f1, 5, FORCE_MAX, 0, 255);
   // Rotate color around.
   for (int i=0; i < strip.numPixels(); i++) {
@@ -195,7 +203,7 @@ int force_only(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
   delay(master_wait*10);
 }
 
-int rainbow(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
+int rainbow(int f1, int f2, int rp1, int rp2) {
   for (int i = 0; i < strip.numPixels(); i++) {
     int color = ((i * 256 / strip.numPixels()) + rainbow_position) % 256;
     //strip.setPixelColor(i, Wheel(color - (color % 12)));
@@ -210,25 +218,22 @@ int rainbow(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
   }
 
   strip.show();
-  //delay(master_wait);
+  delay(master_wait);
+}
+
+
+int back_front(int f1, int f2, int rp1, int rp2) {
+  // Simply set a back and front half with force level pixel colors.
+  for (int i = 0; i<= MIDDLE_LIGHT; i++) {
+    strip.setPixelColor(i, Wheel(map(f1, 0, 1023, 255, 0)));
+  }
+  for (int i = NUM_LIGHTS; i> MIDDLE_LIGHT; i--) {
+    strip.setPixelColor(i, Wheel(map(f2, 0, 1023, 255, 0)));
+  }
+  strip.show();
 }
 
 /*
-int back_front(int f1, int f2, int rp1, int rp2) {
-  // Find colors.
-  int color_scale_1 = fscale(0, 1023, 256, 0, r1, 8);
-  int color_scale_2 = fscale(0, 1023, 256, 0, r2, 8);
-
-  // Simply set a back and front half with force level pixel colors.
-  for (int i=0; i<= MIDDLE_LIGHT; i++) {
-    light_strip.setPixelColor(i, color_wheel(color_scale_1));
-  }
-  for (int i=NUM_LIGHTS; i> MIDDLE_LIGHT; i--) {
-    light_strip.setPixelColor(i, color_wheel(color_scale_2));
-  }
-  light_strip.show();
-}
-
 int grandient(int f1, int f2, int rp1, int rp2) {
   // Find colors.
   int color_scale_1 = fscale(0, 1023, 256, 0, ff_reading_1, 8);
@@ -251,7 +256,7 @@ int grandient(int f1, int f2, int rp1, int rp2) {
  * Utility patterns...
  */
 
-int off(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
+int off(int f1, int f2, int rp1, int rp2) {
   master_wait = 20;
 
   // Do nothing.
@@ -278,6 +283,12 @@ int test_func(int f1, /*int f2,*/ int rp1/*, int rp2*/) {
  */
 uint32_t Color(byte r, byte g, byte b) {
   uint32_t c;
+
+  // Adjust brightness.
+  r = (r / brightness);
+  g = (g / brightness);
+  b = (b / brightness);
+
   c = r;
   c <<= 8;
   c |= g;
@@ -292,13 +303,15 @@ uint32_t Color(byte r, byte g, byte b) {
  */
 uint32_t Wheel(byte WheelPos) {
   if (WheelPos < 85) {
-   return Color(WheelPos * 3, 255 - WheelPos * 3, 0);
-  } else if (WheelPos < 170) {
-   WheelPos -= 85;
-   return Color(255 - WheelPos * 3, 0, WheelPos * 3);
-  } else {
-   WheelPos -= 170; 
-   return Color(0, WheelPos * 3, 255 - WheelPos * 3);
+    return Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+  }
+  else if (WheelPos < 170) {
+    WheelPos -= 85;
+    return Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  }
+  else {
+    WheelPos -= 170; 
+    return Color(0, WheelPos * 3, 255 - WheelPos * 3);
   }
 }
 
